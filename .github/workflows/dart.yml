@@ -1,42 +1,178 @@
-name: iOS-ipa-build
+name: iOS IPA (Ad-hoc or AppStore)
 
 on:
   workflow_dispatch:
+    inputs:
+      build_method:
+        description: "Export method: adhoc or app-store"
+        required: true
+        default: "adhoc"
 
 jobs:
-  build-ios:
-    name: 🎉 iOS Build
+  build-ipa:
     runs-on: macos-latest
+
+    env:
+      # === (1) KHAI BÁO MẶC ĐỊNH — có thể đưa sang Repo Variables ===
+      IOS_SCHEME: Runner                       # Flutter default
+      IOS_WORKSPACE: ios/Runner.xcworkspace    # Flutter default
+      IOS_PROJECT: ios/Runner.xcodeproj
+      IOS_BUNDLE_ID: com.your.bundle           # <== đổi theo app
+      IOS_TEAM_ID: YOURTEAMID                  # <== đổi theo team
+      IOS_PP_ADHOC_NAME: MyApp AdHoc           # <== tên profile Ad-hoc
+      IOS_PP_APPSTORE_NAME: MyApp AppStore     # <== tên profile App Store
+
+      # === (2) KHÔNG SỬA: đường dẫn output
+      ARCHIVE_PATH: ${{ github.workspace }}/build/ios/Runner.xcarchive
+      EXPORT_DIR:   ${{ github.workspace }}/build/export
+      EXPORT_PLIST: ${{ github.workspace }}/exportOptions.plist
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          architecture: x64
-      - run: flutter pub get
-      
+          channel: stable
+          cache: true
 
-      - run: pod repo update
-        working-directory: ios
+      - name: Flutter pub get
+        run: flutter pub get
 
-      - run: flutter build ios --release --no-codesign
+      # Build iOS (no codesign) để generate iOS project/Pods
+      - name: Flutter build ios (no codesign)
+        run: flutter build ios --release --no-codesign
 
-      - run: mkdir Payload
-        working-directory: build/ios/iphoneos
+      # CocoaPods
+      - name: Install CocoaPods (if Podfile)
+        if: hashFiles('ios/Podfile') != ''
+        run: |
+          cd ios
+          pod repo update
+          pod install --repo-update
+          cd ..
 
-      - run: mv Runner.app/ Payload
-        working-directory: build/ios/iphoneos
+      # ====== DEBUG TỰ CHẨN ĐOÁN: kiểm workspace/project & scheme ======
+      - name: Diagnose paths & schemes
+        run: |
+          set -xe
+          echo "Workspace? -> $IOS_WORKSPACE"
+          echo "Project?   -> $IOS_PROJECT"
+          if [ -f "$IOS_WORKSPACE" ]; then
+            echo "Found workspace ✅"
+            xcodebuild -list -workspace "$IOS_WORKSPACE"
+          elif [ -d "$IOS_PROJECT" ]; then
+            echo "Workspace missing. Fallback to project ✅"
+            xcodebuild -list -project "$IOS_PROJECT"
+            echo "NOTE: If scheme '$IOS_SCHEME' not shown, open Xcode and 'Shared' it."
+          else
+            echo "❌ Neither workspace nor project found. Wrong path?"
+            ls -la ios
+            exit 1
+          fi
 
-      - name: Zip output
-        run: zip -qq -r -9 FlutterIpaExport.ipa Payload
-        working-directory: build/ios/iphoneos
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      # ====== Import cert ======
+      - name: Import signing certificate (.p12)
+        uses: apple-actions/import-codesign-certs@v5
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/FlutterIpaExport.ipa
-          tag: v1.0
-          overwrite: true
-          body: "This is first release"
+          p12-file-base64: ${{ secrets.IOS_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_P12_PASSWORD }}
+
+      # ====== Install provisioning profile tương ứng method ======
+      - name: Install provisioning profile
+        shell: bash
+        run: |
+          set -xe
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          if [ "${{ github.event.inputs.build_method }}" = "app-store" ]; then
+            echo "${{ secrets.IOS_PP_APPSTORE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/appstore.mobileprovision
+            echo "Installed App Store profile ✅"
+          else
+            echo "${{ secrets.IOS_PP_ADHOC_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/adhoc.mobileprovision
+            echo "Installed Ad-hoc profile ✅"
+          fi
+
+      # ====== Tạo exportOptions.plist theo method ======
+      - name: Create exportOptions.plist
+        shell: bash
+        run: |
+          set -e
+          METHOD="${{ github.event.inputs.build_method }}"
+          if [ "$METHOD" = "app-store" ]; then
+            PROFILE_NAME="${IOS_PP_APPSTORE_NAME}"
+          else
+            METHOD="ad-hoc"
+            PROFILE_NAME="${IOS_PP_ADHOC_NAME}"
+          fi
+
+          cat > "$EXPORT_PLIST" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>$METHOD</string>
+            <key>teamID</key><string>${IOS_TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${IOS_BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+            <key>stripSwiftSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          echo "Generated $EXPORT_PLIST ✅"
+          cat "$EXPORT_PLIST"
+
+      # ====== xcodebuild archive (tự động chọn workspace hoặc project) ======
+      - name: Archive
+        shell: bash
+        run: |
+          set -xe
+          mkdir -p "$(dirname "$ARCHIVE_PATH")"
+
+          if [ -f "$IOS_WORKSPACE" ]; then
+            xcodebuild -workspace "$IOS_WORKSPACE" \
+              -scheme "$IOS_SCHEME" \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH" \
+              DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+              CODE_SIGN_STYLE=Manual \
+              PROVISIONING_PROFILE_SPECIFIER="${{ github.event.inputs.build_method == 'app-store' && env.IOS_PP_APPSTORE_NAME || env.IOS_PP_ADHOC_NAME }}" \
+              clean archive | xcpretty && exit ${PIPESTATUS[0]}
+          else
+            xcodebuild -project "$IOS_PROJECT" \
+              -scheme "$IOS_SCHEME" \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH" \
+              DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+              CODE_SIGN_STYLE=Manual \
+              PROVISIONING_PROFILE_SPECIFIER="${{ github.event.inputs.build_method == 'app-store' && env.IOS_PP_APPSTORE_NAME || env.IOS_PP_ADHOC_NAME }}" \
+              clean archive | xcpretty && exit ${PIPESTATUS[0]}
+          fi
+
+      # ====== Export IPA ======
+      - name: Export .ipa
+        shell: bash
+        run: |
+          set -xe
+          mkdir -p "$EXPORT_DIR"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$EXPORT_PLIST" \
+            -exportPath "$EXPORT_DIR" | xcpretty && exit ${PIPESTATUS[0]}
+          echo "Exported files:"
+          ls -la "$EXPORT_DIR"
+
+      # ====== Upload Artifact (.ipa + dSYMs) ======
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-${{ github.event.inputs.build_method }}
+          path: |
+            build/export/*.ipa
+            build/export/*.dSYM
+            build/export/**/*.dSYM
