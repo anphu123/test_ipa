@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "591956879550",
+    "project_id": "login-gg-demo-fifobox-app",
+    "storage_bucket": "login-gg-demo-fifobox-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591956879550:android:68777be9d1017613be96ef",
+        "android_client_info": {
+          "package_name": "com.example.fido_box_demo01"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "591956879550-9bd1ovirpk8649qdhjmamrvm2plt6h3m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fido_box_demo01",
+            "certificate_hash": "548121182a33a0551894edd759ac957d257626a6"
+          }
+        },
+        {
+          "client_id": "591956879550-kljm30aac5m4b35riusv6t45anc50rqs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_O-odfxWZxg4mxnEzqb6d60SzYIQlYeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "591956879550-661ajba5qogd2a0aclhmn7fjh7i7cp3s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

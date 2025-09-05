@@ -1,0 +1,103 @@
+name: fido_box_demo01
+
+description: "A new Flutter project."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+
+  flutter:
+    sdk: flutter
+
+  cupertino_icons:
+
+  get:
+  flutter_localizations:
+    sdk: flutter
+  get_storage:
+  intl:
+  flutter_screenutil:
+  shared_preferences:
+  easy_localization:
+  flutter_easyloading:
+  dio:
+  flashy_tab_bar2:
+  animated_text_kit:
+  supabase_flutter:
+  cached_network_image:
+  keyboard_dismisser:
+  google_sign_in:
+  firebase_core:
+  firebase_auth:
+  async:
+  flutter_staggered_grid_view:
+  smooth_page_indicator:
+  marquee:
+  vibration:
+  google_fonts:
+  image_picker:
+  permission_handler:
+  path_provider:
+  timelines_plus:
+  slide_to_act:
+  flutter_swipe_button:
+  country_picker:
+  sms_autofill:
+  otp_autofill:
+  scroll_date_picker:
+  flutter_credit_card:
+  scrollable_positioned_list:
+  geolocator:
+  geocoding:
+  google_maps_flutter:
+  mask_text_input_formatter:
+  camera:
+  flutter_polyline_points:
+  url_launcher:
+  flutter_phone_direct_caller:
+  google_place:
+  photo_view:
+  share_plus:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints:
+  flutter_gen_runner:
+  build_runner:
+  flutter_launcher_icons:
+
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+
+  image_path: assets/images/logo_home.png              # Dùng cho iOS (không hỗ trợ adaptive)
+  remove_alpha_ios: true                                 # Bắt buộc nếu logo có nền trong suốt
+  adaptive_icon_background: "#D00000"                  # Màu nền adaptive icon Android
+  adaptive_icon_foreground: assets/images/logo_home.png # Lớp trên cùng (foreground icon Android)
+  min_sdk_android: 21                                    # Adaptive icon yêu cầu Android 8.0+
+
+
+flutter_gen:
+  output: lib/core/assets/
+  integrations:
+    flutter_svg: true
+  assets:
+    outputs:
+      class_name: Assets
+      package_parameter_enabled: false
+    enabled: true
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/translations/
+    - assets/images/
+
